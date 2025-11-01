@@ -3,52 +3,38 @@
 import React, { useState, useEffect } from 'react';
 import { Shuffle, RotateCcw, Trophy } from 'lucide-react';
 
-interface Tile {
-  value: number;
-  position: number;
-}
-
 export default function Puzzle() {
+  // IMAGEN QUE SIEMPRE FUNCIONA
   const IMAGE_URL = 'https://picsum.photos/600/600?random=1';
 
-  const initialTiles: Tile[] = Array.from({ length: 9 }, (_, i) => ({
-    value: i === 8 ? 0 : i + 1,
-    position: i,
-  }));
-
-  const [tiles, setTiles] = useState<Tile[]>(initialTiles);
+  const [tiles, setTiles] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 0]);
   const [moves, setMoves] = useState(0);
   const [isWon, setIsWon] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<{ moves: number; date: string }[]>([]);
 
+  // Cargar ranking
+  const [leaderboard, setLeaderboard] = useState<{ moves: number; date: string }[]>([]);
   useEffect(() => {
     const saved = localStorage.getItem('puzzle-leaderboard');
     if (saved) setLeaderboard(JSON.parse(saved));
   }, []);
 
+  // Verificar victoria
   useEffect(() => {
-    const isSolved = tiles.every((t, i) => t.value === (i === 8 ? 0 : i + 1));
-    if (isSolved && moves > 0) {
+    if (!isWon && tiles.every((t, i) => t === (i === 8 ? 0 : i + 1)) && moves > 0) {
       setIsWon(true);
-      saveToLeaderboard();
+      const entry = { moves, date: new Date().toLocaleString() };
+      const updated = [...leaderboard, entry].sort((a, b) => a.moves - b.moves).slice(0, 5);
+      setLeaderboard(updated);
+      localStorage.setItem('puzzle-leaderboard', JSON.stringify(updated));
     }
-  }, [tiles, moves]);
-
-  const saveToLeaderboard = () => {
-    const newEntry = { moves, date: new Date().toLocaleString() };
-    const updated = [...leaderboard, newEntry].sort((a, b) => a.moves - b.moves).slice(0, 5);
-    setLeaderboard(updated);
-    localStorage.setItem('puzzle-leaderboard', JSON.stringify(updated));
-  };
+  }, [tiles, moves, isWon, leaderboard]); // ← Añadido isWon
 
   const shuffle = () => {
-    let shuffled: Tile[];
-    let attempts = 0;
+    let arr = [1, 2, 3, 4, 5, 6, 7, 8, 0];
     do {
-      shuffled = [...initialTiles].sort(() => Math.random() - 0.5);
-      attempts++;
-    } while (!isSolvable(shuffled.map(t => t.value)) && attempts < 100);
-    setTiles(shuffled.map((t, i) => ({ ...t, position: i })));
+      arr = arr.sort(() => Math.random() - 0.5);
+    } while (!isSolvable(arr));
+    setTiles(arr);
     setMoves(0);
     setIsWon(false);
   };
@@ -64,39 +50,28 @@ export default function Puzzle() {
     return inv % 2 === 0;
   };
 
-  const getValidMoves = (emptyIdx: number) => {
-    const r = Math.floor(emptyIdx / 3), c = emptyIdx % 3;
-    const m: number[] = [];
-    if (r > 0) m.push(emptyIdx - 3);
-    if (r < 2) m.push(emptyIdx + 3);
-    if (c > 0) m.push(emptyIdx - 1);
-    if (c < 2) m.push(emptyIdx + 1);
-    return m;
-  };
-
-  const handleTileClick = (idx: number) => {
-    if (isWon) return;
-    const emptyIdx = tiles.findIndex(t => t.value === 0);
-    if (getValidMoves(emptyIdx).includes(idx)) {
+  const move = (idx: number) => {
+    const empty = tiles.indexOf(0);
+    const valid = [
+      empty - 1, empty + 1, empty - 3, empty + 3
+    ].filter(i => 
+      i >= 0 && i < 9 && 
+      Math.abs(i % 3 - empty % 3) + Math.abs(Math.floor(i / 3) - Math.floor(empty / 3)) === 1
+    );
+    if (valid.includes(idx)) {
       const newTiles = [...tiles];
-      [newTiles[emptyIdx], newTiles[idx]] = [newTiles[idx], newTiles[emptyIdx]];
+      [newTiles[empty], newTiles[idx]] = [newTiles[idx], newTiles[empty]];
       setTiles(newTiles);
       setMoves(m => m + 1);
     }
   };
 
-  const reset = () => {
-    setTiles(initialTiles);
-    setMoves(0);
-    setIsWon(false);
-  };
-
-  const getClipPath = (value: number) => {
-    if (value === 0) return 'inset(0)';
+  const getPosition = (value: number) => {
+    if (value === 0) return 'center';
     const pos = value - 1;
-    const row = Math.floor(pos / 3);
-    const col = pos % 3;
-    return `inset(${row * 33.333}% ${(2 - col) * 33.333}% ${(2 - row) * 33.333}% ${col * 33.333}%)`;
+    const x = (pos % 3) * 50;
+    const y = Math.floor(pos / 3) * 50;
+    return `${x}% ${y}%`;
   };
 
   return (
@@ -110,90 +85,69 @@ export default function Puzzle() {
         <div className="flex justify-between items-center">
           <span className="text-lg">Movimientos: <span className="text-purple-400 font-bold">{moves}</span></span>
           <div className="flex gap-2">
-            <button onClick={shuffle} className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all">
+            <button onClick={shuffle} className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition">
               <Shuffle className="w-5 h-5" />
             </button>
-            <button onClick={reset} className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all">
+            <button onClick={() => setTiles([1,2,3,4,5,6,7,8,0])} className="p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition">
               <RotateCcw className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* GRID FORZADO CON CSS PURO */}
-        <div 
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '8px',
-            width: '320px',
-            height: '320px',
-            margin: '0 auto',
-            backgroundColor: '#1a1a1a',
-            padding: '8px',
-            borderRadius: '12px',
-          }}
-        >
-          {tiles.map((tile, idx) => {
-            const isEmpty = tile.value === 0;
-            return (
-              <button
-                key={idx}
-                onClick={() => handleTileClick(idx)}
-                disabled={isEmpty || isWon}
-                style={{
-                  position: 'relative',
-                  overflow: 'hidden',
-                  borderRadius: '8px',
-                  backgroundColor: isEmpty ? '#374151' : 'transparent',
-                  cursor: isEmpty ? 'default' : 'pointer',
-                  transition: 'all 0.2s',
-                  transform: isEmpty ? 'none' : 'scale(1)',
-                }}
-                onMouseEnter={(e) => !isEmpty && !isWon && (e.currentTarget.style.transform = 'scale(1.05)')}
-                onMouseLeave={(e) => !isEmpty && !isWon && (e.currentTarget.style.transform = 'scale(1)')}
-              >
-                {!isEmpty && (
-                  <img
-                    src={IMAGE_URL}
-                    alt=""
-                    style={{
-                      width: '300%',
-                      height: '300%',
-                      objectFit: 'cover',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      clipPath: getClipPath(tile.value),
-                      transform: `translate(${(tile.value - 1) % 3 * -100}%, ${Math.floor((tile.value - 1) / 3) * -100}%)`,
-                    }}
-                    draggable={false}
-                  />
-                )}
-              </button>
-            );
-          })}
+        {/* GRID 3x3 FIJO */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '8px',
+          width: '320px',
+          height: '320px',
+          margin: '0 auto',
+          backgroundColor: '#1f2937',
+          padding: '12px',
+          borderRadius: '16px',
+        }}>
+          {tiles.map((value, idx) => (
+            <button
+              key={idx}
+              onClick={() => move(idx)}
+              disabled={value === 0 || isWon}
+              style={{
+                borderRadius: '12px',
+                backgroundColor: value === 0 ? '#374151' : 'transparent',
+                backgroundImage: value === 0 ? 'none' : `url(${IMAGE_URL})`,
+                backgroundSize: '300%',
+                backgroundPosition: getPosition(value),
+                backgroundRepeat: 'no-repeat',
+                cursor: value === 0 ? 'default' : 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: value === 0 ? 'none' : '0 4px 10px rgba(0,0,0,0.3)',
+              }}
+              onMouseEnter={e => value !== 0 && !isWon && (e.currentTarget.style.transform = 'scale(1.05)')}
+              onMouseLeave={e => value !== 0 && !isWon && (e.currentTarget.style.transform = 'scale(1)')}
+            />
+          ))}
         </div>
 
         {isWon && (
-          <div className="text-center p-4 bg-green-900 rounded-lg">
-            <p className="text-xl font-bold">¡Completado!</p>
-            <p className="text-green-300">En {moves} movimientos</p>
+          <div className="text-center p-6 bg-green-900 rounded-xl">
+            <p className="text-2xl font-bold">¡Completado!</p>
+            <p className="text-green-300 mt-2">En {moves} movimientos</p>
           </div>
         )}
 
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <span className="font-semibold">Mejores récords</span>
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="w-6 h-6 text-yellow-500" />
+            <span className="text-lg font-semibold">Mejores récords</span>
           </div>
           {leaderboard.length === 0 ? (
             <p className="text-gray-500 text-center">Sin récords aún</p>
           ) : (
-            <ol className="space-y-1 text-sm">
+            <ol className="space-y-2 text-sm">
               {leaderboard.map((e, i) => (
-                <li key={i} className="flex justify-between text-gray-400">
+                <li key={i} className="flex justify-between text-gray-300">
                   <span>{i + 1}. {e.date}</span>
-                  <span className="text-purple-400">{e.moves} mov.</span>
+                  <span className="text-purple-400 font-medium">{e.moves} mov.</span>
                 </li>
               ))}
             </ol>
